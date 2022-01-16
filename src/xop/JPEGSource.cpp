@@ -115,6 +115,7 @@ bool JPEGSource::HandleFrame(MediaChannelId channel_id, AVFrame frame)
         const unsigned char *qTableBuf = frameParser.quantizationTables(qTableLen);
         const unsigned char *scanDataBuf = frameParser.scandata(scanDataLen);
 #if 0
+        printf("frame_size = %d\n", frame_size);
         printf("sizeof(rtp_hdr_t) = %d\n", sizeof(rtp_hdr_t));
         printf("sizeof(jpeghdr_t) = %d\n", sizeof(jpeghdr_t));
         printf("sizeof(jpeghdr_rst_t) = %d\n", sizeof(jpeghdr_rst_t));
@@ -137,6 +138,10 @@ bool JPEGSource::HandleFrame(MediaChannelId channel_id, AVFrame frame)
         printf("jpegheaderLength = %d\n", frameParser.jpegheaderLength());
         printf("driFound = %d\n", frameParser.driFound());
 #endif
+        if(frameParser.width() == 0 || frameParser.height() == 0 || scanDataLen == 0){
+            printf("frame error ?????\n");
+            return false;
+        }
         static unsigned int start_seq = 0;
         start_seq++;
         int dri = frameParser.driFound();
@@ -190,9 +195,10 @@ bool JPEGSource::HandleFrame(MediaChannelId channel_id, AVFrame frame)
         rtp_pkt.size = RTP_TCP_HEAD_SIZE + RTP_HEADER_SIZE + MAX_RTP_PAYLOAD_SIZE;
         rtp_pkt.last = 0;
 
-        frame_size -= jpegdata_pos;
+        //frame_size -= jpegdata_pos;//for jpeg ok, but not for mjpeg
         while (frame_size > 0) {
-            jpeg_data = frame_buf + jpegdata_pos;
+            //jpeg_data = frame_buf + jpegdata_pos;//for jpeg ok, but not for mjpeg
+            jpeg_data = frame_buf;
             packet_buf = &rtp_pkt.data.get()[RTP_TCP_HEAD_SIZE + 0];
             ptr = packet_buf + RTP_HEADER_SIZE;
 

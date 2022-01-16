@@ -24,7 +24,7 @@ public:
     
 private:
 	FILE *m_file = NULL;
-	char *m_buf = NULL;
+	unsigned char *m_buf = NULL;
 	int  m_buf_size = 0;
 	int  m_bytes_used = 0;
 	int  m_count = 0;
@@ -116,7 +116,7 @@ void SendFrameThread(xop::RtspServer* rtsp_server, xop::MediaSessionId session_i
 JPEGFile::JPEGFile(int buf_size)
     : m_buf_size(buf_size)
 {
-	m_buf = new char[m_buf_size];
+	m_buf = new unsigned char[m_buf_size];
 }
 
 JPEGFile::~JPEGFile()
@@ -146,10 +146,10 @@ void JPEGFile::Close()
 
 int JPEGFile::ReadFrame(char* in_buf, int in_buf_size, bool* end)
 {
-	if(m_file == NULL) {
+	if(m_file == NULL || m_buf == NULL) {
 		return -1;
 	}
-
+	int i = 0;
 	int bytes_read = (int)fread(m_buf, 1, m_buf_size, m_file);
 	if(bytes_read == 0) {
 		fseek(m_file, 0, SEEK_SET); 
@@ -158,82 +158,72 @@ int JPEGFile::ReadFrame(char* in_buf, int in_buf_size, bool* end)
 		bytes_read = (int)fread(m_buf, 1, m_buf_size, m_file);
 		if(bytes_read == 0)         {            
 			this->Close();
+			printf("error read file return zero\n");
 			return -1;
 		}
 	}
 	//printf("bytes_read = %d\n", bytes_read);
-
+#if 0
+	//for pic
 	int size = (bytes_read<=in_buf_size ? bytes_read : in_buf_size);
 	memcpy(in_buf, m_buf, size); 
+	fseek(m_file, 0, SEEK_SET);
 	return bytes_read;
-#if 0
-	bool is_find_start = false, is_find_end = false;
-	int i = 0, start_code = 3;
+#else
+	//for mjpeg
+	bool is_find_start = false;
+	bool is_find_end = false;
+	unsigned int start_pos = 0;
+	unsigned int end_pos = 0;
 	*end = false;
-
-	for (i=0; i<bytes_read-5; i++) {
-		if(m_buf[i] == 0 && m_buf[i+1] == 0 && m_buf[i+2] == 1) {
-			start_code = 3;
-		}
-		else if(m_buf[i] == 0 && m_buf[i+1] == 0 && m_buf[i+2] == 0 && m_buf[i+3] == 1) {
-			start_code = 4;
-		}
-		else  {
-			continue;
-		}
-        
-		if (((m_buf[i+start_code]&0x1F) == 0x5 || (m_buf[i+start_code]&0x1F) == 0x1) 
-			&& ((m_buf[i+start_code+1]&0x80) == 0x80)) {
+	//printf("0x%x 0x%x\n", m_buf[0], m_buf[1]);
+	for (i=0; i<bytes_read-1; i++) {
+		unsigned char cur = m_buf[i+0];
+		unsigned char next = m_buf[i+1];
+		
+		if(is_find_start == false && cur == 0xff && next == 0xd8){
 			is_find_start = true;
-			i += 4;
-			break;
-		}
-	}
-
-	for (; i<bytes_read-5; i++) {
-		if(m_buf[i] == 0 && m_buf[i+1] == 0 && m_buf[i+2] == 1)
-		{
-			start_code = 3;
-		}
-		else if(m_buf[i] == 0 && m_buf[i+1] == 0 && m_buf[i+2] == 0 && m_buf[i+3] == 1) {
-			start_code = 4;
-		}
-		else   {
+			start_pos = i;
+			//printf("start_pos = %d\n", start_pos);
 			continue;
 		}
-        
-		if (((m_buf[i+start_code]&0x1F) == 0x7) || ((m_buf[i+start_code]&0x1F) == 0x8) 
-			|| ((m_buf[i+start_code]&0x1F) == 0x6)|| (((m_buf[i+start_code]&0x1F) == 0x5 
-			|| (m_buf[i+start_code]&0x1F) == 0x1) &&((m_buf[i+start_code+1]&0x80) == 0x80)))  {
+		if(is_find_start == true && cur == 0xff && next == 0xd9){//EOI
 			is_find_end = true;
+			end_pos = i + 2;
+			//printf("end_pos = %d\n", end_pos);
+			break;
+		}else if(is_find_start == true && cur == 0xff && next == 0xd8){//
+			is_find_end = true;
+			end_pos = i;
+			//printf("end_pos = %d\n", end_pos);
 			break;
 		}
 	}
+	//printf("-----------------------\n");
+	if(is_find_start && is_find_end){
 
-	bool flag = false;
-	if(is_find_start && !is_find_end && m_count>0) {        
-		flag = is_find_end = true;
-		i = bytes_read;
-		*end = true;
+	}
+
+	if(is_find_start && !is_find_end) {        
+		is_find_end = true;
+		end_pos = i + 1;
+		//*end = true;
+		//printf("!!end_pos = %d\n", end_pos);
 	}
 
 	if(!is_find_start || !is_find_end) {
+		m_count = 0;
+		m_bytes_used = 0;
+		printf("check your file, no start or end flag\n");
 		this->Close();
 		return -1;
 	}
 
-	int size = (i<=in_buf_size ? i : in_buf_size);
-	memcpy(in_buf, m_buf, size); 
-
-	if(!flag) {
-		m_count += 1;
-		m_bytes_used += i;
-	}
-	else {
-		m_count = 0;
-		m_bytes_used = 0;
-	}
-
+	int start_end_len = end_pos - start_pos;
+	int size = (start_end_len<=in_buf_size ? start_end_len : in_buf_size);
+	//printf("start_end_len = %d, size = %d\n", start_end_len, size);
+	memcpy(in_buf, &m_buf[start_pos], size); 
+	m_bytes_used += size;
 	fseek(m_file, m_bytes_used, SEEK_SET);
 	return size;
 #endif

@@ -7,16 +7,18 @@ TARGET4 = rtsp_jpeg_file
 
 OBJS_PATH = objs
 
-CROSS_COMPILE =
+CROSS_COMPILE = arm-v01c02-linux-musleabi-
 CXX   = $(CROSS_COMPILE)g++
 CC    = $(CROSS_COMPILE)gcc
 STRIP = $(CROSS_COMPILE)strip
+AR = $(CROSS_COMPILE)ar
 
 INC  = -I$(shell pwd)/src/ -I$(shell pwd)/src/net -I$(shell pwd)/src/xop -I$(shell pwd)/src/3rdpart
-LIB  =
+LIBA  = libRtspServer.a
+LIBSO  = libRtspServer.so
 
 LD_FLAGS  = -lrt -pthread -lpthread -ldl -lm $(DEBUG)
-CXX_FLAGS = -std=c++11
+CXX_FLAGS = -std=c++11 -fPIC
 
 O_FLAG = -O2
 
@@ -38,10 +40,16 @@ OBJS5 = $(patsubst %.cpp,$(OBJS_PATH)/%.o,$(SRC5))
 SRC6  = $(notdir $(wildcard ./example/rtsp_jpeg_file.cpp))
 OBJS6 = $(patsubst %.cpp,$(OBJS_PATH)/%.o,$(SRC6))
 
-all: BUILD_DIR $(TARGET1) $(TARGET2) $(TARGET3) $(TARGET4)
+all: BUILD_DIR $(TARGET1) $(TARGET2) $(TARGET3) $(TARGET4) $(LIBA) $(LIBSO)
 
 BUILD_DIR:
 	@-mkdir -p $(OBJS_PATH)
+
+$(LIBA) : $(OBJS1) $(OBJS2)
+	$(AR) -rcv $@ $^
+
+$(LIBSO) : $(OBJS1) $(OBJS2)
+	$(CXX) -shared -o $@ $^ $(CXX_FLAGS)
 
 $(TARGET1) : $(OBJS1) $(OBJS2) $(OBJS3)
 	$(CXX) $^ -o $@ $(CFLAGS) $(LD_FLAGS) $(CXX_FLAGS)
@@ -60,6 +68,8 @@ $(OBJS_PATH)/%.o : ./example/%.cpp
 $(OBJS_PATH)/%.o : ./src/net/%.cpp
 	$(CXX) -c  $< -o  $@  $(CXX_FLAGS) $(INC)
 $(OBJS_PATH)/%.o : ./src/xop/%.cpp
+	$(CXX) -c  $< -o  $@  $(CXX_FLAGS) $(INC)
+$(OBJS_PATH)/%.o : ./src/3rdpart/%.cpp
 	$(CXX) -c  $< -o  $@  $(CXX_FLAGS) $(INC)
 
 clean:

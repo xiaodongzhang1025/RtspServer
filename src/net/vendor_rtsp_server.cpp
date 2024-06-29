@@ -16,6 +16,7 @@ static unsigned int gPort = 0;
 static xop::EventLoop* gpEventLoop;
 static std::shared_ptr<xop::RtspServer> gpRtspServer;
 static xop::MediaSessionId gMediaSessionIdTabe[xop::MAX_MEDIA_CHANNEL];
+static RtspServerMediaSt *gpRtspServerMediaInfo[xop::MAX_MEDIA_CHANNEL];
 
 int RtspServerInit(uint16_t port, char *mAuthName, char *mAuthPasswd)
 {
@@ -43,15 +44,38 @@ int RtspServerInit(uint16_t port, char *mAuthName, char *mAuthPasswd)
 }
 
 int RtspServerDeInit(void){
+	gpRtspServer->Stop();
 	return 0;
 }
 
 static void RtspClientConnectCallback(xop::MediaSessionId sessionId, std::string peer_ip, uint16_t peer_port){
-	printf("__RTSP client connect, ip=%s, port=%hu, sessionId=%d\n", peer_ip.c_str(), peer_port, sessionId);
+	RtspServerMediaSt *pRtspServerMediaInfo = NULL;
+	unsigned int chn_id = 0;
+	for(chn_id = 0; chn_id < xop::MAX_MEDIA_CHANNEL; chn_id++){
+		if(sessionId == gMediaSessionIdTabe[(xop::MediaChannelId)chn_id]){
+			pRtspServerMediaInfo = gpRtspServerMediaInfo[chn_id];
+		}
+	}
+	if(pRtspServerMediaInfo && pRtspServerMediaInfo->mConnectCallback){
+	    pRtspServerMediaInfo->mConnectCallback(peer_ip.c_str(), peer_port);
+	}else{
+		printf("__RTSP client connect, ip=%s, port=%hu, sessionId=%d\n", peer_ip.c_str(), peer_port, sessionId);
+	}
 }
 
 static void RtspClientDisConnectCallback(xop::MediaSessionId sessionId, std::string peer_ip, uint16_t peer_port){
-	printf("__RTSP client Disconnect, ip=%s, port=%hu, sessionId=%d\n", peer_ip.c_str(), peer_port, sessionId);
+	RtspServerMediaSt *pRtspServerMediaInfo = NULL;
+	unsigned int chn_id = 0;
+	for(chn_id = 0; chn_id < xop::MAX_MEDIA_CHANNEL; chn_id++){
+		if(sessionId == gMediaSessionIdTabe[(xop::MediaChannelId)chn_id]){
+			pRtspServerMediaInfo = gpRtspServerMediaInfo[chn_id];
+		}
+	}
+	if(pRtspServerMediaInfo && pRtspServerMediaInfo->mDisConnectCallback){
+		pRtspServerMediaInfo->mDisConnectCallback(peer_ip.c_str(), peer_port);
+	}else{
+		printf("__RTSP client Disconnect, ip=%s, port=%hu, sessionId=%d\n", peer_ip.c_str(), peer_port, sessionId);
+	}
 }
 
 int RtspServerMediaInit(RtspServerMediaSt *pRtspServerMediaInfo){
@@ -93,11 +117,15 @@ int RtspServerMediaInit(RtspServerMediaSt *pRtspServerMediaInfo){
 	}
 #endif
 	gMediaSessionIdTabe[pRtspServerMediaInfo->mChnId] = gpRtspServer->AddSession(session);
+	gpRtspServerMediaInfo[pRtspServerMediaInfo->mChnId] = pRtspServerMediaInfo;
     printf("Play URL: rtsp://%s:%d/%s \n\n", ip.c_str(), gPort, suffix.c_str());
 	return 0;
 }
 
 int RtspServerMediaDeInit(RtspServerMediaSt *pRtspServerMediaInfo){
+	gpRtspServerMediaInfo[pRtspServerMediaInfo->mChnId] = NULL;
+	//xop::MediaSession *session = GetMediaSource(gMediaSessionIdTabe[(xop::MediaChannelId)pRtspServerMediaInfo->mChnId]);
+	//session->RemoveSource((xop::MediaChannelId)pRtspServerMediaInfo->mChnId);
 	return 0;
 }
 

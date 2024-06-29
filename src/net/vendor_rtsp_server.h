@@ -30,8 +30,8 @@ typedef struct RtspServerMedia {
 	enum RtspMediaType mMediaType;
 	unsigned int mChnId;//xop::channel_0 //xop::MAX_MEDIA_CHANNEL
 
-	void (*mConnectCallback)(char* peer_ip, uint16_t peer_port);
-	void (*mDisConnectCallback)(char* peer_ip, uint16_t peer_port);
+	void (*mConnectCallback)(const char* peer_ip, uint16_t peer_port);
+	void (*mDisConnectCallback)(const char* peer_ip, uint16_t peer_port);
 }RtspServerMediaSt;
 
 int RtspServerInit(uint16_t port, char *mAuthName, char *mAuthPasswd);
